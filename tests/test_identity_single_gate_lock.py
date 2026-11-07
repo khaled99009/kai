@@ -106,16 +106,14 @@ API: Final = "src/kai/api/runtime.py"
 SCAN_ROOTS: Final = (REPO / "src", REPO / "alembic")
 COLUMN: Final = "identities"
 
-#: The head of the *deliverable* migration chain: the last revision this branch
-#: actually ships. Local, unapproved work may add heads beside it; those are named
-#: in ``_LOCAL_ONLY_REVISIONS`` so they are declared here instead of silently
-#: ignored, and so the guard keeps working in a clean delivery tree where they are
-#: absent.
-DELIVERY_HEAD: Final = "a7c9e1f3b5d2"
-_LOCAL_ONLY_REVISIONS: Final = frozenset({"b2f7c1d9e4a6"})
+#: The head of the *deliverable* migration chain: the merge revision shipped by
+#: this branch. All revisions currently present are intentional and therefore
+#: there is no local-only allow-list to hide an undeclared head.
+DELIVERY_HEAD: Final = "7573ac048c34"
+_LOCAL_ONLY_REVISIONS: Final = frozenset()
 
-#: 14 revisions tracked on the branch, plus ``a7c9e1f3b5d2_add_intent_attempts``.
-DELIVERY_CHAIN_LENGTH: Final = 15
+#: The merged chain includes both the intent-attempt and Google pending branches.
+DELIVERY_CHAIN_LENGTH: Final = 17
 
 
 def _delivery_chain() -> tuple[str, ...]:

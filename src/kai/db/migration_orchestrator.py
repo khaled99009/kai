@@ -1179,6 +1179,15 @@ def run_migration_suite(
             raise
         except Exception as exc:
             print(f"migration database left for investigation: {database_name}")
+            detail = sanitize_text(
+                f"{type(exc).__name__}: {exc}",
+                config.admin_url,
+                config.runtime_url,
+            ).strip()
+            if len(detail) > 800:
+                detail = detail[:800] + "..."
+            suffix = f": {detail}" if detail else ""
             raise MigrationOrchestrationError(
                 "migration orchestration failed; database left for investigation"
+                + suffix
             ) from exc

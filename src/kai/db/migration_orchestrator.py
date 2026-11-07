@@ -285,6 +285,17 @@ class PsycopgAdmin:
         return conn
 
     def configure_database(self, database_name: str, owner: str, run_id: str) -> None:
+        # Re-assert database ownership on the administrator connection.  This
+        # is intentional even though CREATE DATABASE receives OWNER: PostgreSQL
+        # installations with role membership/default-privilege differences can
+        # otherwise retain the bootstrap role as datdba.
+        with self._connection().cursor() as cur:
+            cur.execute(
+                sql.SQL("ALTER DATABASE {} OWNER TO {}").format(
+                    sql.Identifier(database_name), sql.Identifier(owner)
+                )
+            )
+
         conn = self._owner_connection(database_name, owner)
         try:
             with conn.cursor() as cur:

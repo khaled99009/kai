@@ -284,6 +284,11 @@ class PsycopgAdmin:
             raise
         return conn
 
+    def _database_admin_connection(
+        self, database_name: str
+    ) -> psycopg.Connection[tuple[object, ...]]:
+        return psycopg.connect(**self._kwargs(database_name))  # type: ignore[arg-type]
+
     def configure_database(self, database_name: str, owner: str, run_id: str) -> None:
         # Re-assert database ownership on the administrator connection.  This
         # is intentional even though CREATE DATABASE receives OWNER: PostgreSQL
@@ -296,7 +301,12 @@ class PsycopgAdmin:
                 )
             )
 
-        conn = self._owner_connection(database_name, owner)
+        # PostgreSQL 15+ initializes ``public`` with the pseudo-role
+        # ``pg_database_owner``.  Altering it after SET ROLE can therefore
+        # leave the actual namespace owner unchanged.  Use the bootstrap admin
+        # directly on the migration database so the ownership invariant is
+        # applied explicitly and consistently across PostgreSQL versions.
+        conn = self._database_admin_connection(database_name)
         try:
             with conn.cursor() as cur:
                 cur.execute(

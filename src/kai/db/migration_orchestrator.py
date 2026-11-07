@@ -1091,8 +1091,10 @@ def _run_pytest(
             result.stderr or result.stdout or "", migration_url, password
         )
         detail = detail.strip()
-        if len(detail) > 800:
-            detail = detail[:800] + "..."
+        if len(detail) > 1200:
+            # Pytest puts the useful assertion message and short summary near
+            # the end of its output; preserve both ends after sanitization.
+            detail = detail[:400] + "\n...\n" + detail[-800:]
         suffix = f": {detail}" if detail else ""
         raise MigrationOrchestrationError(
             f"migration pytest group failed with exit code {result.returncode}{suffix}"

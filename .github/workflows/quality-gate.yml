@@ -18,11 +18,9 @@ env:
   # outside this job. They are not production secrets; the local test stack uses
   # file-backed secrets.
   KAI_TEST_POSTGRES_ADMIN_USER: kai_test_admin
-  KAI_TEST_POSTGRES_ADMIN_PASSWORD: ci_only_admin_password
   # The safety gate in tests/conftest.py accepts only the `kai_test` database
   # name and the `kai_test` runtime role; these values must not drift.
   KAI_TEST_POSTGRES_USER: kai_test
-  KAI_TEST_POSTGRES_PASSWORD: ci_only_runtime_password
   KAI_TEST_POSTGRES_DB: kai_test
   # Docker routing is explicit. The orchestrator requires this project-owned
   # context, verifies the daemon id after selecting it, and never inherits
@@ -61,13 +59,26 @@ jobs:
       # safety gate's expectations: the kai_test database, the kai_test role,
       # and the loopback test port. Alembic requires this explicit value; it
       # never falls back to Settings.
-      DATABASE_URL: postgresql+asyncpg://kai_test:ci_only_runtime_password@127.0.0.1:55432/kai_test
       ENVIRONMENT: test
       LOG_LEVEL: INFO
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Initialize masked CI database credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          admin_password='ci_only_admin_password'
+          runtime_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$admin_password"
+          echo "::add-mask::$runtime_password"
+          {
+            echo "KAI_TEST_POSTGRES_ADMIN_PASSWORD=$admin_password"
+            echo "KAI_TEST_POSTGRES_PASSWORD=$runtime_password"
+            echo "DATABASE_URL=postgresql+asyncpg://kai_test:$runtime_password@127.0.0.1:55432/kai_test"
+          } >> "$GITHUB_ENV"
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v5

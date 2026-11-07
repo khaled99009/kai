@@ -347,7 +347,11 @@ class PsycopgAdmin:
             raise ProvisioningError("migration database was not created")
         db_owner, schema_owner, comment = row
         if db_owner != owner or schema_owner != owner:
-            raise ProvisioningError("migration database ownership is not the runtime role")
+            raise ProvisioningError(
+                "migration database ownership is not the runtime role"
+                f" (database={db_owner!r}, schema={schema_owner!r},"
+                f" expected={owner!r})"
+            )
         if not isinstance(comment, str) or f"run={run_id}" not in comment:
             raise ProvisioningError("migration database provenance marker is missing")
 

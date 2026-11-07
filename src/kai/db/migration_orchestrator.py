@@ -346,7 +346,12 @@ class PsycopgAdmin:
         if row is None:
             raise ProvisioningError("migration database was not created")
         db_owner, schema_owner, comment = row
-        if db_owner != owner or schema_owner != owner:
+        # PostgreSQL 15+ reports the default public schema owner as the
+        # pseudo-role ``pg_database_owner``.  Database ownership still binds
+        # that role to the database owner, so it is valid when datdba is the
+        # restricted runtime role we created for this run.
+        schema_owned_by_runtime = schema_owner in {owner, "pg_database_owner"}
+        if db_owner != owner or not schema_owned_by_runtime:
             raise ProvisioningError(
                 "migration database ownership is not the runtime role"
                 f" (database={db_owner!r}, schema={schema_owner!r},"

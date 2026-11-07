@@ -3594,7 +3594,7 @@ REVISION_PREV = "d1a2b3c4e5f6"
 # that shape, because ``a7c9e1f3b5d2`` now chains off the tracked
 # ``e6f7a8b9c0d1`` instead of off it. The assertion below only cares that
 # downgrade -> upgrade is clean and that this head is applied.
-REVISION_HEAD = "a7c9e1f3b5d2"
+REVISION_HEAD = "7573ac048c34"
 
 
 def _alembic(target_url: str, *args: str) -> subprocess.CompletedProcess[str]:

@@ -242,7 +242,8 @@ async def _reset_rate_limits() -> AsyncIterator[None]:
 _TRUNCATE_SQL: Final = (
     "TRUNCATE TABLE tenants, users, google_accounts, google_oauth_pending,"
     " tasks, task_plans,"
-    " approvals, approval_rule_suggestions, intent_attempts, runtime_executions,"
+        " approvals, approval_rule_suggestions, intent_attempts, runtime_executions,"
+        " evidence_ledger,"
     " memory_entries,"
     " memory_preferences, revoked_tokens,"
     " alerts, alert_dispatcher_state"

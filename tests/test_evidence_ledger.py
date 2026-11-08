@@ -111,6 +111,8 @@ async def test_postgres_chain_is_append_only() -> None:
             payload={"step": 2, "ok": False},
         )
         await session.commit()
+        await session.refresh(first)
+        await session.refresh(second)
         assert first.sequence == 1
         assert first.previous_hash == GENESIS_HASH
         assert second.sequence == 2

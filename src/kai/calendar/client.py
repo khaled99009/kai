@@ -183,6 +183,7 @@ async def create_event(
     *,
     access_token: str,
     req: CreateEventRequest,
+    idempotency_key: str | None = None,
 ) -> CalendarEvent:
     """Create a timed event on the primary calendar and parse it back."""
     body: dict = {
@@ -192,10 +193,13 @@ async def create_event(
         "attendees": [{"email": email} for email in req.attendees],
     }
     with provider_call(provider=metrics.PROVIDER_GOOGLE, operation="create_event"):
+        headers = {"Authorization": f"Bearer {access_token}"}
+        if idempotency_key is not None:
+            headers["X-Idempotency-Key"] = idempotency_key
         resp = await transport.post(
             EVENTS_COLLECTION_URL,
             json=body,
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=headers,
         )
         _raise_for_status(resp)
         try:

@@ -122,6 +122,9 @@ class ToolGateway:
             self._assert_no_reserved_arguments(intent)
             tool = self._resolve_tool(intent)
             arguments = self._validate_arguments(tool, intent)
+            self._set_provider_idempotency_key(
+                intent=intent, context=context, arguments=arguments
+            )
 
             risk = tool.risk_level
             recipient_identity = await self._resolve_recipient_identity(context)
@@ -393,6 +396,22 @@ class ToolGateway:
             messages = self._validation_messages(exc)
             raise ToolValidationError(messages) from exc
         return instance.model_dump()
+
+    @staticmethod
+    def _set_provider_idempotency_key(
+        *, intent: ToolIntent, context: ToolContext, arguments: Mapping[str, Any]
+    ) -> None:
+        """Bind one validated governed action to one stable provider key."""
+        from kai.tools.idempotency import provider_idempotency_key
+
+        context.metadata["provider_idempotency_key"] = provider_idempotency_key(
+            tenant_id=context.tenant_id,
+            task_id=context.task_id,
+            request_id=intent.request_id,
+            tool_name=intent.tool_name,
+            arguments=arguments,
+            account_id=context.account_id,
+        )
 
     def _policy_input(
         self,

@@ -46,6 +46,19 @@ tool, or decide fulfillment. Authority remains in the Policy, Approval, and Tool
 Gateway paths. Provider-side idempotency is the next Wave 1 change and must bind
 the external effect to the same execution identity before retries are enabled.
 
+## Provider idempotency key propagation
+
+The Gateway derives a stable `kai-<sha256>` key after validating and normalizing
+tool arguments. The key includes the tenant, task, request/action, tool, account,
+and normalized arguments; it never includes access tokens or provider
+credentials. Calendar-create and Gmail-send adapters propagate it as
+`X-Idempotency-Key` to the injected provider transport.
+
+This propagation is not presented as proof that Google APIs honor the header. A
+provider-specific native idempotency mapping and a durable effect state machine
+are still required before automatic retries are enabled. Until then, an
+ambiguous provider result remains an attention-required outcome.
+
 ## Verification
 
 The CI Quality Gate verifies:

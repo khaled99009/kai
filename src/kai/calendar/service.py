@@ -189,6 +189,7 @@ async def create_and_verify_event(
     account_id: UUID,
     tenant_id: UUID,
     req: CreateEventRequest,
+    idempotency_key: str | None = None,
 ) -> CreateEventOutcome:
     """Create an event, read it back, and verify it deterministically.
 
@@ -202,7 +203,12 @@ async def create_and_verify_event(
     """
     account = await _load_account(session, account_id=account_id, tenant_id=tenant_id)
     token = await usable_access_token(session, transport, account=account)
-    created = await client.create_event(transport, access_token=token, req=req)
+    created = await client.create_event(
+        transport,
+        access_token=token,
+        req=req,
+        idempotency_key=idempotency_key,
+    )
     try:
         readback = await fetch_event(
             transport, access_token=token, event_id=created.event_id

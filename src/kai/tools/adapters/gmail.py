@@ -163,6 +163,7 @@ class GmailAdapter(AdapterBase):
                 account_id=self.require_account(context),
                 tenant_id=context.tenant_id,
                 req=req,
+                idempotency_key=context.metadata.get("provider_idempotency_key"),
             )
         except AccountNotFoundError:
             raise ToolExecutionError(

@@ -167,6 +167,7 @@ async def send_and_verify(
     account_id: UUID,
     tenant_id: UUID,
     req: SendRequest,
+    idempotency_key: str | None = None,
 ) -> SendOutcome:
     """Send one message, read it back, and verify it with Gmail evidence.
 
@@ -183,7 +184,12 @@ async def send_and_verify(
     raw = build_raw_message(
         sender_email=sender_email, to=req.to, subject=req.subject, body=req.body
     )
-    sent = await client.send_message(transport, access_token=token, raw=raw)
+    sent = await client.send_message(
+        transport,
+        access_token=token,
+        raw=raw,
+        idempotency_key=idempotency_key,
+    )
     try:
         readback = await client.get_message(
             transport, access_token=token, message_id=sent.message_id

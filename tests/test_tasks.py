@@ -943,7 +943,7 @@ REVISION_PREV = "5f3e1d2c4b6a"
 # untracked, unapproved ``b2f7c1d9e4a6`` alongside ``a7c9e1f3b5d2``. The
 # assertion below only cares that downgrade -> upgrade is clean and that this
 # head is applied.
-REVISION_HEAD = "7573ac048c34"
+REVISION_HEAD = "c9d4e6f8a1b2"
 
 
 def _alembic(target_url: str, *args: str) -> subprocess.CompletedProcess[str]:

@@ -94,11 +94,12 @@ async def test_postgres_chain_is_append_only() -> None:
         session.add(execution)
         await session.commit()
         await session.refresh(execution)
+        execution_id = execution.id
         first = await append_event(
             session,
             tenant_id=tenant.id,
             task_id=task.id,
-            execution_id=execution.id,
+            execution_id=execution_id,
             event_type="tool_observation",
             payload={"step": 1, "ok": True},
         )
@@ -106,7 +107,7 @@ async def test_postgres_chain_is_append_only() -> None:
             session,
             tenant_id=tenant.id,
             task_id=task.id,
-            execution_id=execution.id,
+            execution_id=execution_id,
             event_type="tool_observation",
             payload={"step": 2, "ok": False},
         )
@@ -135,7 +136,7 @@ async def test_postgres_chain_is_append_only() -> None:
                         "SELECT sequence, event_type FROM evidence_ledger "
                         "WHERE execution_id = :execution_id ORDER BY sequence"
                     ),
-                    {"execution_id": execution.id},
+                    {"execution_id": execution_id},
                 )
             ).all()
         )

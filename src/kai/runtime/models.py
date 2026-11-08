@@ -43,7 +43,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -134,4 +134,41 @@ class RuntimeExecution(PKMixin, TenantMixin, TimestampMixin, Base):
     )
 
 
-__all__ = ["RuntimeExecution"]
+class EvidenceLedger(PKMixin, TenantMixin, Base):
+    """Immutable, hash-chained record of runtime observations.
+
+    The payload is a private durable copy of the gateway observation.  It is not
+    used as an authorization source; it proves what the runtime recorded and
+    provides a tamper-evident chain independent of ``RuntimeExecution.evidence``.
+    PostgreSQL rejects updates and deletes through the migration-installed trigger.
+    """
+
+    __tablename__ = "evidence_ledger"
+    __table_args__ = (
+        UniqueConstraint(
+            "execution_id", "sequence", name="uq_evidence_ledger_execution_sequence"
+        ),
+        Index(
+            "ix_evidence_ledger_tenant_task_sequence",
+            "tenant_id",
+            "task_id",
+            "sequence",
+        ),
+        {"comment": "append-only hash-chained runtime evidence"},
+    )
+
+    execution_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=False, index=True
+    )
+    task_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    previous_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+__all__ = ["EvidenceLedger", "RuntimeExecution"]

@@ -119,6 +119,7 @@ from kai.runtime.fulfillment import (
     gmail_send_criteria,
     task_preparation_criteria,
 )
+from kai.runtime.ledger import append_event
 from kai.runtime.models import RuntimeExecution
 from kai.runtime.schemas import (
     EXTERNAL_OUTCOME,
@@ -965,6 +966,14 @@ class AgentRuntime:
                         # so the conclusion is durable even if this process
                         # dies next.
                         record[EXTERNAL_OUTCOME] = EXTERNAL_OUTCOME_UNKNOWN
+                    await append_event(
+                        session,
+                        tenant_id=task.tenant_id,
+                        task_id=task.id,
+                        execution_id=row.id,
+                        event_type="tool_observation",
+                        payload=record,
+                    )
                     evidence.append(record)
                     row.evidence = list(evidence)
                     row.steps_used = steps_used

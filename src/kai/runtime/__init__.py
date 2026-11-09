@@ -29,6 +29,13 @@ _EXPORTS = {
 
 
 def __getattr__(name: str) -> Any:
+    if name not in _EXPORTS:
+        try:
+            module = import_module(f"{__name__}.{name}")
+        except ModuleNotFoundError as exc:
+            raise AttributeError(name) from exc
+        globals()[name] = module
+        return module
     module_name, attribute_name = _EXPORTS[name]
     value = getattr(import_module(module_name), attribute_name)
     globals()[name] = value

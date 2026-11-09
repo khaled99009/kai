@@ -97,4 +97,5 @@ The CI Quality Gate verifies:
 - hash-chain linking;
 - PostgreSQL rejection of both `UPDATE` and `DELETE`;
 - crash recovery after a committed `RESERVED` effect before provider dispatch;
+- timeout after provider dispatch settling the effect as `AMBIGUOUS`;
 - repository Ruff and Mypy checks.

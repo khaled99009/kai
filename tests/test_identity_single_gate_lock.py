@@ -109,11 +109,11 @@ COLUMN: Final = "identities"
 #: The head of the *deliverable* migration chain: the merge revision shipped by
 #: this branch. All revisions currently present are intentional and therefore
 #: there is no local-only allow-list to hide an undeclared head.
-DELIVERY_HEAD: Final = "c9d4e6f8a1b2"
+DELIVERY_HEAD: Final = "d1e7f9a3b5c7"
 _LOCAL_ONLY_REVISIONS: Final = frozenset()
 
 #: The merged chain includes both the intent-attempt and Google pending branches.
-DELIVERY_CHAIN_LENGTH: Final = 18
+DELIVERY_CHAIN_LENGTH: Final = 19
 
 
 def _delivery_chain() -> tuple[str, ...]:

@@ -59,6 +59,24 @@ provider-specific native idempotency mapping and a durable effect state machine
 are still required before automatic retries are enabled. Until then, an
 ambiguous provider result remains an attention-required outcome.
 
+## Durable provider-effect state
+
+Migration `d1e7f9a3b5c7` adds `provider_effects`. Its unique
+`idempotency_key` is the database backstop against two workers reserving the
+same external effect. The state machine is intentionally fail-closed:
+
+- `RESERVED`: a worker owns the reservation and may be about to contact the
+  provider; another retry must not send;
+- `APPLIED`: the provider returned a usable accepted result; another retry must
+  not send;
+- `AMBIGUOUS`: the request may have reached the provider but cannot be
+  classified safely; reconciliation is required and automatic retry is
+  forbidden.
+
+Only `RESERVED -> APPLIED` and `RESERVED -> AMBIGUOUS` are legal terminal
+transitions. The row stores provider reference and redacted evidence only; it
+never stores credentials or raw message bodies.
+
 ## Verification
 
 The CI Quality Gate verifies:

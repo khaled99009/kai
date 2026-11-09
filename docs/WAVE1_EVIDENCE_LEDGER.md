@@ -98,4 +98,5 @@ The CI Quality Gate verifies:
 - PostgreSQL rejection of both `UPDATE` and `DELETE`;
 - crash recovery after a committed `RESERVED` effect before provider dispatch;
 - timeout after provider dispatch settling the effect as `AMBIGUOUS`;
+- concurrent workers racing on one idempotency key with a single executor call;
 - repository Ruff and Mypy checks.

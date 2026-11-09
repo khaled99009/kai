@@ -106,3 +106,72 @@ async def test_verification_mismatch_is_attention_after_applied_effect() -> None
     assert second_result.outcome is ToolOutcome.REQUIRES_ATTENTION
     assert second_result.error_code == "PROVIDER_EFFECT_ALREADY_RESERVED_OR_SETTLED"
     assert len([call for call in backend.calendar_calls if call.method == "POST"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_unreadable_readback_is_attention_after_applied_effect() -> None:
+    """A created event with unavailable read-back cannot be reported as success."""
+    tenant, user = await make_tenant_user("gateway-readback@example.com")
+    account = await insert_account(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        email="alice@example.com",
+        sub="gateway-readback-sub",
+    )
+    task = await make_task(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        allowed_tools=["calendar.create_event"],
+    )
+    backend = GoogleBackend()
+    backend.calendar_read_status = 404
+    intent = make_intent(
+        "calendar.create_event",
+        task=task,
+        arguments=CALENDAR_ARGS,
+        request_id="gateway-readback-unavailable-1",
+    )
+
+    gateway, _ = make_gateway()
+    async with session_scope() as session:
+        context = make_context(
+            session=session,
+            task=task,
+            backend=backend,
+            account_id=account.id,
+        )
+        result = await gateway.execute(intent, context)
+        await close_context(context)
+
+    assert result.outcome is ToolOutcome.REQUIRES_ATTENTION
+    assert result.error_code == "VERIFICATION_FAILED"
+    assert len([call for call in backend.calendar_calls if call.method == "POST"]) == 1
+
+    async with session_scope() as session:
+        effect = (
+            await session.execute(
+                select(ProviderEffect).where(
+                    ProviderEffect.tenant_id == tenant.id,
+                    ProviderEffect.task_id == task.id,
+                    ProviderEffect.request_id == intent.request_id,
+                )
+            )
+        ).scalar_one()
+        assert effect.status == ProviderEffectStatus.APPLIED.value
+        assert effect.provider_reference == "created-event-1"
+        assert effect.evidence["event_id"] == "created-event-1"
+
+    second_gateway, _ = make_gateway()
+    async with session_scope() as session:
+        second_context = make_context(
+            session=session,
+            task=task,
+            backend=backend,
+            account_id=account.id,
+        )
+        second_result = await second_gateway.execute(intent, second_context)
+        await close_context(second_context)
+
+    assert second_result.outcome is ToolOutcome.REQUIRES_ATTENTION
+    assert second_result.error_code == "PROVIDER_EFFECT_ALREADY_RESERVED_OR_SETTLED"
+    assert len([call for call in backend.calendar_calls if call.method == "POST"]) == 1

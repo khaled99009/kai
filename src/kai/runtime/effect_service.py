@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kai.runtime.effects import ProviderEffect, ProviderEffectStatus
 
 
+@dataclass(frozen=True)
+class ProviderEffectReservation:
+    effect: ProviderEffect
+    created: bool
+
+
 async def reserve_provider_effect(
     session: AsyncSession,
     *,
@@ -21,7 +28,7 @@ async def reserve_provider_effect(
     request_id: str,
     tool_name: str,
     idempotency_key: str,
-) -> ProviderEffect:
+) -> ProviderEffectReservation:
     """Atomically create or lock the durable reservation for one effect."""
     statement = (
         insert(ProviderEffect)
@@ -35,8 +42,9 @@ async def reserve_provider_effect(
             evidence={},
         )
         .on_conflict_do_nothing(index_elements=[ProviderEffect.idempotency_key])
+        .returning(ProviderEffect.id)
     )
-    await session.execute(statement)
+    inserted_id = (await session.execute(statement)).scalar_one_or_none()
     result = await session.execute(
         select(ProviderEffect)
         .where(
@@ -48,7 +56,7 @@ async def reserve_provider_effect(
     effect = result.scalar_one_or_none()
     if effect is None:
         raise RuntimeError("provider effect reservation disappeared")
-    return effect
+    return ProviderEffectReservation(effect=effect, created=inserted_id is not None)
 
 
 async def settle_provider_effect(
@@ -79,4 +87,8 @@ async def settle_provider_effect(
     )
 
 
-__all__ = ["reserve_provider_effect", "settle_provider_effect"]
+__all__ = [
+    "ProviderEffectReservation",
+    "reserve_provider_effect",
+    "settle_provider_effect",
+]

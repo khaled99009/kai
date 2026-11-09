@@ -48,12 +48,15 @@ from collections.abc import Mapping
 from typing import Any, Final
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kai.approvals.errors import ApprovalError
 from kai.db.models import IntentAttempt
 from kai.identity.models import IdentityStatus as ResolvedIdentityStatus
 from kai.logging import get_logger
 from kai.policy.models import IdentityStatus, PolicyDecisionKind, PolicyInput
+from kai.runtime.effect_service import reserve_provider_effect, settle_provider_effect
+from kai.runtime.effects import ProviderEffect, ProviderEffectStatus
 from kai.tasks.models import Task
 from kai.tasks.service import TaskNotFoundError, get_task
 from kai.tools.boundaries import (
@@ -88,6 +91,9 @@ from kai.tools.registry import ToolRegistry
 from kai.tools.result import ToolOutcome, ToolResult
 from kai.tools.risk import RiskLevel
 
+_PROVIDER_EFFECT_TOOLS = frozenset({"calendar.create_event", "gmail.send"})
+_PROVIDER_EFFECT_BLOCKED = "PROVIDER_EFFECT_ALREADY_RESERVED_OR_SETTLED"
+
 
 class ToolGateway:
     """Co-ordinates one verified tool execution, in a fixed order."""
@@ -116,6 +122,8 @@ class ToolGateway:
         tool: ToolDefinition | None = None
         result: ToolResult
         approved_approval_id: uuid.UUID | None = None
+        provider_effect: ProviderEffect | None = None
+        provider_effect_created = False
         try:
             task = await self._authenticate(context)
             self._assert_identity(intent, context)
@@ -223,14 +231,62 @@ class ToolGateway:
                     arguments=arguments,
                 )
 
-            execution = await tool.executor.execute(
-                tool=tool,
-                arguments=arguments,
-                context=context,
+            reservation = await self._reserve_provider_effect(
+                intent=intent, context=context, tool=tool
             )
-            verification = await self.verification_engine.verify(
-                tool=tool, execution=execution, context=context
-            )
+            if reservation is not None:
+                provider_effect, provider_effect_created = reservation
+                if (
+                    not provider_effect_created
+                    or provider_effect.status != ProviderEffectStatus.RESERVED.value
+                ):
+                    await context.session.rollback()
+                    return self._attention(
+                        intent,
+                        tool,
+                        risk,
+                        _PROVIDER_EFFECT_BLOCKED,
+                        (
+                            "a previous worker may have contacted the provider; "
+                            "reconciliation is required"
+                        ),
+                    )
+                # The reservation must survive a worker crash before the provider
+                # call. This is the deliberate transaction boundary between
+                # durable effect ownership and the external side effect.
+                await context.session.commit()
+
+            try:
+                execution = await tool.executor.execute(
+                    tool=tool,
+                    arguments=arguments,
+                    context=context,
+                )
+                verification = await self.verification_engine.verify(
+                    tool=tool, execution=execution, context=context
+                )
+            except Exception:
+                await self._settle_provider_effect(
+                    context=context,
+                    effect=provider_effect,
+                    status=ProviderEffectStatus.AMBIGUOUS,
+                    error_code="PROVIDER_RESULT_AMBIGUOUS",
+                )
+                raise
+
+            if provider_effect is not None:
+                await self._settle_provider_effect(
+                    context=context,
+                    effect=provider_effect,
+                    status=(
+                        ProviderEffectStatus.APPLIED
+                        if execution.ok
+                        else ProviderEffectStatus.AMBIGUOUS
+                    ),
+                    error_code=None if execution.ok else execution.error_code,
+                    evidence=execution.evidence,
+                    provider_reference=self._provider_reference(execution.evidence),
+                )
             result = self._finalize(intent, tool, risk, execution, verification)
         except ToolContextError as exc:
             result = self._attention(
@@ -412,6 +468,63 @@ class ToolGateway:
             arguments=arguments,
             account_id=context.account_id,
         )
+
+    async def _reserve_provider_effect(
+        self,
+        *,
+        intent: ToolIntent,
+        context: ToolContext,
+        tool: ToolDefinition,
+    ) -> tuple[ProviderEffect, bool] | None:
+        """Reserve only externally visible write tools, not reads or policy steps."""
+        if tool.name not in _PROVIDER_EFFECT_TOOLS:
+            return None
+        if not isinstance(context.session, AsyncSession):
+            # Lightweight gateway unit doubles have no database contract. Real
+            # application execution always supplies AsyncSession.
+            return None
+        key = context.metadata.get("provider_idempotency_key")
+        if not isinstance(key, str):
+            raise RuntimeError("provider idempotency key was not initialized")
+        reservation = await reserve_provider_effect(
+            context.session,
+            tenant_id=context.tenant_id,
+            task_id=context.task_id,
+            request_id=intent.request_id,
+            tool_name=tool.name,
+            idempotency_key=key,
+        )
+        return reservation.effect, reservation.created
+
+    async def _settle_provider_effect(
+        self,
+        *,
+        context: ToolContext,
+        effect: ProviderEffect | None,
+        status: ProviderEffectStatus,
+        error_code: str | None = None,
+        evidence: Mapping[str, Any] | None = None,
+        provider_reference: str | None = None,
+    ) -> None:
+        if effect is None:
+            return
+        await settle_provider_effect(
+            context.session,
+            effect_id=effect.id,
+            status=status,
+            provider_reference=provider_reference,
+            error_code=error_code,
+            evidence=evidence,
+        )
+        await context.session.commit()
+
+    @staticmethod
+    def _provider_reference(evidence: Mapping[str, Any]) -> str | None:
+        for field in ("event_id", "message_id", "provider_reference"):
+            value = evidence.get(field)
+            if isinstance(value, str) and value:
+                return value
+        return None
 
     def _policy_input(
         self,

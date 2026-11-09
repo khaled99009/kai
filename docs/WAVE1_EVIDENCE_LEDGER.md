@@ -77,6 +77,16 @@ Only `RESERVED -> APPLIED` and `RESERVED -> AMBIGUOUS` are legal terminal
 transitions. The row stores provider reference and redacted evidence only; it
 never stores credentials or raw message bodies.
 
+The `ToolGateway` integrates this state machine for the externally visible
+`calendar.create_event` and `gmail.send` operations. It commits a newly created
+`RESERVED` row before invoking the provider. A retry that finds any existing row,
+including an unfinished `RESERVED` row, is stopped with an
+attention-required result and the provider executor is not called. A successful
+provider execution is settled as `APPLIED`; an exception, timeout, or failed
+execution classification is settled as `AMBIGUOUS` before the failure is
+returned to the caller. This deliberately favors duplicate prevention over
+automatic retry when the provider outcome cannot be proven.
+
 ## Verification
 
 The CI Quality Gate verifies:

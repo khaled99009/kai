@@ -6,23 +6,33 @@ and the resume-safe execution envelope. Execution authority stays with the
 Tool Gateway; the runtime only builds intents and reads deterministic results.
 """
 
-from kai.runtime.deps import get_runtime_gateway, get_runtime_service
-from kai.runtime.models import RuntimeExecution
-from kai.runtime.schemas import (
-    GoalSubmission,
-    RuntimeTaskResponse,
-    SubmitResponse,
-    TriggerResponse,
-    UnderstandingOutput,
-)
-from kai.runtime.service import (
-    AgentRuntime,
-    RuntimeFatal,
-    RuntimeNotFoundError,
-    RuntimeResumeError,
-    TriggerOutcome,
-)
-from kai.runtime.understanding import UnderstandingFailed, understand_scenario
+from importlib import import_module
+from typing import Any
+
+_EXPORTS = {
+    "AgentRuntime": ("kai.runtime.service", "AgentRuntime"),
+    "GoalSubmission": ("kai.runtime.schemas", "GoalSubmission"),
+    "RuntimeExecution": ("kai.runtime.models", "RuntimeExecution"),
+    "RuntimeFatal": ("kai.runtime.service", "RuntimeFatal"),
+    "RuntimeNotFoundError": ("kai.runtime.service", "RuntimeNotFoundError"),
+    "RuntimeResumeError": ("kai.runtime.service", "RuntimeResumeError"),
+    "RuntimeTaskResponse": ("kai.runtime.schemas", "RuntimeTaskResponse"),
+    "SubmitResponse": ("kai.runtime.schemas", "SubmitResponse"),
+    "TriggerOutcome": ("kai.runtime.service", "TriggerOutcome"),
+    "TriggerResponse": ("kai.runtime.schemas", "TriggerResponse"),
+    "UnderstandingFailed": ("kai.runtime.understanding", "UnderstandingFailed"),
+    "UnderstandingOutput": ("kai.runtime.schemas", "UnderstandingOutput"),
+    "get_runtime_gateway": ("kai.runtime.deps", "get_runtime_gateway"),
+    "get_runtime_service": ("kai.runtime.deps", "get_runtime_service"),
+    "understand_scenario": ("kai.runtime.understanding", "understand_scenario"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    module_name, attribute_name = _EXPORTS[name]
+    value = getattr(import_module(module_name), attribute_name)
+    globals()[name] = value
+    return value
 
 __all__ = [
     "AgentRuntime",
